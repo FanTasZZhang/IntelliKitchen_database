@@ -30,8 +30,13 @@ class ProfilePageViewController: UIViewController, UINavigationControllerDelegat
     var databaseNotification = false
     
     override func viewDidLoad() {
+        let data:Db = Db()
+        print("-----> username previous is:")
+        print(userName.text)
         super.viewDidLoad()
-        loadUserInfo()
+        data.loadUserInfo(ppvc:self)
+        print("-----> username now is:")
+        print(userName.text)
         myImageView?.layer.borderWidth = 1
         myImageView?.layer.masksToBounds = false
         myImageView?.layer.borderColor = UIColor.black.cgColor
@@ -44,87 +49,7 @@ class ProfilePageViewController: UIViewController, UINavigationControllerDelegat
     }
     
     
-    func loadUserInfo(){
-        let db = Firestore.firestore()
-        
-        let tempGoogleUsername = GlobalVariable.googleUsername
-        let tempGoogleEmail = GlobalVariable.googleEmail
-        let tempGoogleIconUrl = GlobalVariable.googleIconUrl
-        
-        //handle google log in
-        if tempGoogleUsername != "" && tempGoogleEmail != ""{
-            self.userName?.text = tempGoogleUsername
-            
-            self.userEmail?.text = tempGoogleEmail
-            
-            guard let imageURL = tempGoogleIconUrl else { return  }
-            
-            DispatchQueue.global().async {
-                guard let imageData = try? Data(contentsOf: imageURL) else { return }
-                
-                let image = UIImage(data: imageData)
-                DispatchQueue.main.async {
-                    self.myImageView?.image = image
-                    self.uploadProfileImage(image!){(url) in
-                        
-                    }
-                }
-            }
-            let currentUid = Auth.auth().currentUser!.uid
-            
-            db.collection("users").document(currentUid).collection("favoriteRecipe").getDocuments{ (snapshot, error) in
-                for document in snapshot!.documents{
-                    let documentData = document.data()
-                    self.favoriteIDList = documentData["favRecipe"] as! [String]
-                    if self.favoriteIDList.count == 0{
-                        self.favRecipeAlert?.text = "Add Some Favorite while Searching"
-                    } else {
-                        self.favRecipeAlert?.text = "My Favorite Recipes:"
-                        
-                    }
-                    self.favoriteRecipes = self.createArray(self.favoriteIDList)
-                }
-            }
-            
-            db.collection("users").document(currentUid).setData(["username":tempGoogleUsername, "email":tempGoogleEmail, "uid": currentUid]) { (error) in
-                if error != nil{
-                    print(" error when saving google sign in information")
-                }
-            }
-            //handle normal login
-        } else {
-            let currentUid = Auth.auth().currentUser!.uid
-            db.collection("users").document(currentUid).getDocument { (document, error) in
-                if error == nil {
-                    if document != nil && document!.exists {
-                        let documentData = document?.data()
-                        
-                        self.userName?.text = documentData?["username"] as? String
-                        self.userEmail?.text = documentData?["email"] as? String
-                        self.loadImageFromFirebase()
-                        
-                    } else {
-                        print("Can read the document but the document might not exists")
-                    }
-                    
-                } else {
-                    print("Something wrong reading the document")
-                }
-            }
-            db.collection("users").document(currentUid).collection("favoriteRecipe").getDocuments{ (snapshot, error) in
-                for document in snapshot!.documents{
-                    let documentData = document.data()
-                    self.favoriteIDList = documentData["favRecipe"] as! [String]
-                    if self.favoriteIDList.count == 0{
-                        self.favRecipeAlert?.text = "Add Some Favorite while Searching"
-                    } else {
-                        self.favRecipeAlert?.text = "My Favorite Recipes:"
-                    }
-                    self.favoriteRecipes = self.createArray(self.favoriteIDList)
-                }
-            }
-        }
-    }
+    
     
     func createArray(_ favoriteIDList: [String]) -> [FavoriteRecipe]{
         var temp: [FavoriteRecipe] = []
@@ -224,7 +149,7 @@ class ProfilePageViewController: UIViewController, UINavigationControllerDelegat
         }
     }
     
-    func uploadProfileImage(_ image:UIImage, completion: @escaping ((_ url:URL?)->())){
+    static func uploadProfileImage(_ image:UIImage, completion: @escaping ((_ url:URL?)->())){
         guard let uid = Auth.auth().currentUser?.uid else {return}
         let storageRef = Storage.storage().reference().child("users/\(uid)")
         
@@ -261,7 +186,7 @@ class ProfilePageViewController: UIViewController, UINavigationControllerDelegat
     func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
         if let image = info[UIImagePickerController.InfoKey.originalImage] as? UIImage{
             myImageView.image = image
-            self.uploadProfileImage(image){(url) in
+            ProfilePageViewController.self.uploadProfileImage(image){(url) in
                 
             }
         }
